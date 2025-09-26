@@ -1,0 +1,9 @@
+[package]
+name = "gage"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+glfw = { version = "*" , default-features = false, features = ["prebuilt-libs", "image", "log", "raw-window-handle-v0-6", "wayland", "x11", "native-handles", "static-link"] }
+log = { version = "*" }
+colog = { version = "*" }
