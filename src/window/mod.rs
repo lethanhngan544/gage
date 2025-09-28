@@ -1,19 +1,23 @@
 use crate::engine::state::State;
 use crate::engine::bus::Bus;
-use crate::engine::types::{CVarValue, Event};
+use crate::engine::types::{CVarValue, Event, MessageQueue};
 
 use log;
 use std::sync::{Arc, Mutex};
 
-#[derive(Debug)]
-pub struct WindowState {
-    pub width: u32,
-    pub height: u32,
-    pub title: String,
-}
+// #[derive(Debug)]
+// pub struct WindowState {
+//     pub width: u32,
+//     pub height: u32,
+//     pub title: String,
+//     pub running: bool,
+// }
+
 
 pub struct Window {
-    state: Arc<Mutex<WindowState>>,
+    width: u32,
+    height: u32,
+    title: String,
     glfw: glfw::Glfw,
     window: glfw::PWindow,
     reciever: glfw::GlfwReceiver<(f64, glfw::WindowEvent)>,
@@ -39,56 +43,72 @@ impl Window {
         window.set_all_polling(true);
 
         Self {
-            state: Arc::new(Mutex::new(WindowState { width, height, title })),
+            width,
+            height,
+            title,
             glfw,
             window,
             reciever,
         }
     }
 
-    pub fn register(&mut self, state: Arc<Mutex<State>>, bus: Arc<Mutex<Bus>>) {
-        let mut engine_state_locked = state.lock().unwrap();
-        let mut engine_bus_locked = bus.lock().unwrap();
-        let state_clone = self.state.clone();
-        {
-            let state_locked = state_clone.lock().unwrap();
-            engine_state_locked.register("window_width", CVarValue::Int(state_locked.width as i32));
-            engine_state_locked.register("window_height", CVarValue::Int(state_locked.height as i32));
-            engine_state_locked.register("window_title", CVarValue::Str(state_locked.title.clone()));
+    // pub fn register(&mut self, state: Arc<Mutex<State>>, bus: Arc<Mutex<Bus>>) {
+    //     // Register window CVars
+    //     {
+    //         let state_locked = self.state.lock().unwrap();
+    //         let mut engine_state_locked = state.lock().unwrap();
+    //         engine_state_locked.register("window_width", CVarValue::Int(state_locked.width as i32));
+    //         engine_state_locked.register("window_height", CVarValue::Int(state_locked.height as i32));
+    //         engine_state_locked.register("window_title", CVarValue::Str(state_locked.title.clone()));
+    //     }
 
+    //     // Subscribe to window events
+    //     let state_clone = self.state.clone();
+    //     let mut engine_bus_locked = bus.lock().unwrap();
+    //     engine_bus_locked.subscribe(move |event| {
+    //         if let Ok(mut state_locked) = state_clone.lock() {
+    //             if let Event::WindowResized(width, height) = event {
+    //                 state_locked.width = width;
+    //                 state_locked.height = height;
+    //             } else if let Event::KeyPressed(keycode, scancode) = event {
+    //                 state_locked.running = false;
+    //             }
+    //         } 
+        
+    //     });
+
+    // }
+
+    pub fn on_event(&mut self, event: &Event) {
+        if let Event::WindowResized(width, height) = event {
+            self.width = *width;
+            self.height = *height;
         }
-
-        engine_bus_locked.subscribe(move |event| {
-            match event {
-                Event::WindowResized(width, height) => {
-                    let mut state_locked = state_clone.lock().unwrap();
-                    state_locked.width = width;
-                    state_locked.height = height;
-                }
-                _ => {}
-            }
-        });
-
     }
 
     pub fn running(&self) -> bool {
         !self.window.should_close()
     }
 
-    pub fn update(&mut self, state: Arc<Mutex<State>>, bus: Arc<Mutex<Bus>>) {
+    pub fn update(&mut self, message_queue: &mut MessageQueue) {
         self.glfw.poll_events();
-        let mut bus_lock = bus.lock().unwrap();
-        let mut state_lock = state.lock().unwrap();
         //Reciever events and dispatch to message bus
         for (_, event) in glfw::flush_messages(&self.reciever) {
             match event {
                 glfw::WindowEvent::CursorPos(x, y) => {
-                    bus_lock.post(Event::MouseMoved(x as u32, y as u32));
+                    message_queue.push_back(Event::MouseMoved(x as u32, y as u32));
                 }
                 glfw::WindowEvent::FramebufferSize(width, height) => {
-                    bus_lock.post(Event::WindowResized(width as u32, height as u32));
-                    state_lock.set("window_width", CVarValue::Int(width as i32));
-                    state_lock.set("window_height", CVarValue::Int(height as i32));
+                    message_queue.push_back(Event::WindowResized(width as u32, height as u32));
+                    // state_lock.set("window_width", CVarValue::Int(width as i32));
+                    // state_lock.set("window_height", CVarValue::Int(height as i32));
+                }
+                glfw::WindowEvent::Key(Key, Scancode, Action, Modifiers) => {
+                    if Action == glfw::Action::Press {
+                        message_queue.push_back(Event::KeyPressed(Key as u32, Scancode as u32));
+                    } else if Action == glfw::Action::Release {
+                        message_queue.push_back(Event::KeyReleased(Key as u32, Scancode as u32));
+                    }
                 }
                 _ => ()
             }

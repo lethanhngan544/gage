@@ -4,6 +4,7 @@ use crate::engine::types::CVarValue;
 use std::collections::HashMap;
 use log;
 
+//Will be shared between all systems
 pub struct State {
     cvars: HashMap<String, CVar>,
    

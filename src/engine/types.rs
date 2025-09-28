@@ -1,3 +1,5 @@
+use std::collections::{VecDeque, HashMap};
+
 #[derive(Debug, Clone)]
 pub enum CVarValue {
     Int(i32),
@@ -21,6 +23,8 @@ pub struct CVar {
 }
 
 pub type Subscriber = Box<dyn Fn(Event) + Send + Sync>;
+pub type EngineCvar = HashMap<String, CVar>;
+pub type MessageQueue = VecDeque<Event>;
 
 #[derive(Debug, Clone)]
 pub enum Event {
@@ -37,5 +41,8 @@ pub enum Event {
 
     // Window 
     MouseMoved(u32, u32),
-    WindowResized(u32, u32)
+    WindowResized(u32, u32),
+    // Keyboard
+    KeyPressed(u32, u32), // key, scancode
+    KeyReleased(u32, u32) 
 }
