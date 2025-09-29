@@ -7,6 +7,32 @@ pub enum CVarValue {
     Str(String),
 }
 
+impl CVarValue {
+    pub fn as_int(&self) -> i32 {
+        if let CVarValue::Int(v) = self {
+            *v
+        } else {
+            panic!("Tried to get Int from {:?}", self);
+        }
+    }
+
+    pub fn as_float(&self) -> f32 {
+        if let CVarValue::Float(v) = self {
+            *v
+        } else {
+            panic!("Tried to get Float from {:?}", self);
+        }
+    }
+
+    pub fn as_str(&self) -> &str {
+        if let CVarValue::Str(v) = self {
+            v
+        } else {
+            panic!("Tried to get Str from {:?}", self);
+        }
+    }
+}
+
 impl std::fmt::Display for CVarValue {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -17,24 +43,17 @@ impl std::fmt::Display for CVarValue {
     }
 }
 
-pub struct CVar {
-    pub name: String,
-    pub value: CVarValue,
-}
-
-pub type Subscriber = Box<dyn Fn(Event) + Send + Sync>;
-pub type EngineCvar = HashMap<String, CVar>;
-pub type MessageQueue = VecDeque<Event>;
+pub type EngineCvar = HashMap<String, CVarValue>;
+pub type MessageQueue = VecDeque<Message>;
 
 #[derive(Debug, Clone)]
-pub enum Event {
-    // Renderer-related
-    CreateBuffer { data: Vec<u8> },
-    BufferCreated { id: u32 },
-
+pub enum Message {
     // Scene-related
     SpawnStaticModel { path: String },
     StaticModelReady { id: u32 },
+
+    //Renderer
+    
 
     // Logging/UI
     Log { level: log::Level, message: String },
@@ -44,5 +63,5 @@ pub enum Event {
     WindowResized(u32, u32),
     // Keyboard
     KeyPressed(u32, u32), // key, scancode
-    KeyReleased(u32, u32) 
+    KeyReleased(u32, u32)
 }

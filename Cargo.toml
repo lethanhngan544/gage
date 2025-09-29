@@ -6,4 +6,7 @@ edition = "2024"
 [dependencies]
 glfw = { version = "*" , default-features = false, features = ["prebuilt-libs", "image", "log", "raw-window-handle-v0-6", "wayland", "x11", "native-handles", "static-link"] }
 log = { version = "*" }
+wgpu = { version = "*" }
 colog = { version = "*" }
+pollster = { version = "*" }
+uuid = { version = "*", features = ["v4"] }
