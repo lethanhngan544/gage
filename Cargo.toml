@@ -10,3 +10,5 @@ wgpu = { version = "*" }
 colog = { version = "*" }
 pollster = { version = "*" }
 uuid = { version = "*", features = ["v4"] }
+bytemuck = { version = "*" }
+gltf = { version = "*" }

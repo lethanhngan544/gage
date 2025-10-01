@@ -1,9 +1,13 @@
 use std::collections::HashMap;
 
-use wgpu::util::DeviceExt;
 
 use crate::engine::types::{CVarValue, EngineCvar, Message, MessageQueue};
 
+pub mod static_model;
+
+pub enum DrawCommands {
+    StaticModel { id: uuid::Uuid },
+}
 
 pub struct Renderer<'a> {
     instance: wgpu::Instance,
@@ -11,13 +15,18 @@ pub struct Renderer<'a> {
     device: wgpu::Device,
     queue: wgpu::Queue,
     config: wgpu::SurfaceConfiguration,
+    draw_commands: Vec<DrawCommands>,
+
+    static_model_renderer: static_model::StaticModelRenderer,
+    static_model_paths: HashMap<String, uuid::Uuid>,
+    static_models: HashMap<uuid::Uuid, static_model::StaticModel>,
 }
 
 impl<'a> Renderer<'a> {
     pub fn new(window: &'a glfw::PWindow, cvar: &mut EngineCvar) -> Self {
 
-        let mut width = cvar.get("window_width").unwrap().as_int();
-        let mut height = cvar.get("window_height").unwrap().as_int();
+        let width = cvar.get("window_width").unwrap().as_int();
+        let height = cvar.get("window_height").unwrap().as_int();
 
         let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
             backends: wgpu::Backends::DX12,
@@ -62,12 +71,19 @@ impl<'a> Renderer<'a> {
             desired_maximum_frame_latency: 2,
         };
         surface.configure(&device, &config);
+
+        let static_model_renderer = static_model::StaticModelRenderer::new(&device, &surface_format);
+
         Self {
             instance,
             surface,
             device,
             queue,
-            config
+            config,
+            draw_commands: vec![],
+            static_model_renderer,
+            static_model_paths: HashMap::new(),
+            static_models: HashMap::new(),
         }
     }
 
@@ -81,12 +97,30 @@ impl<'a> Renderer<'a> {
         
     // }
 
-    pub fn on_message(&mut self, message: Message) {
+    pub fn on_message(&mut self, message: Message, messages: &mut MessageQueue, cvar: &EngineCvar) {
         match message {
             Message::WindowResized(width, height) => {
                 self.config.width = width;
                 self.config.height = height;
                 self.surface.configure(&self.device, &self.config);
+            }
+            Message::LoadStaticModel { path } => {
+                //Check if model is already loaded
+                if self.static_model_paths.contains_key(&path) {
+                    log::info!("Static model: {} already loaded loading from cache !", path);
+                    messages.push_back(Message::StaticModelReady { id: self.static_model_paths.get(&path).unwrap().clone() });
+                }
+                else {
+                    //TODO: Asynchronously load model
+                    let model = static_model::StaticModel::new(&self.device);
+                    let uuid = uuid::Uuid::new_v4();
+                    self.static_model_paths.insert(path.clone(), uuid.clone());
+                    self.static_models.insert( uuid.clone(), model);   
+                    messages.push_back(Message::StaticModelReady { id: uuid });
+                }
+
+               
+                
             }
             _ => {}
         }
@@ -97,9 +131,13 @@ impl<'a> Renderer<'a> {
         let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
             label: Some("Render Encoder"),
         });
+
+
+
+        //Main pass
         {
-            let _render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("Render Pass"),
+            let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("Main render Pass"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                     view: &view,
                     resolve_target: None,
@@ -118,11 +156,31 @@ impl<'a> Renderer<'a> {
                 occlusion_query_set: None,
                 timestamp_writes: None,
             });
+            
+            render_pass.set_pipeline(self.static_model_renderer.get_pipeline());
+            for cmd in &self.draw_commands {
+                match cmd {
+                    DrawCommands::StaticModel { id } => {
+                        if let Some(model) = self.static_models.get(id) {
+                            for raw_mesh in &model.raw_meshes {
+                                render_pass.set_vertex_buffer(0, raw_mesh.vertex_buffer.slice(..));
+                                render_pass.set_index_buffer(raw_mesh.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
+                                render_pass.draw_indexed(0..raw_mesh.num_elements, 0, 0..1);
+                            }
+                        }
+                    }
+                }
+            }
         }
 
         // submit will accept anything that implements IntoIter
         self.queue.submit(std::iter::once(encoder.finish()));
         output.present();
-
+    }
+    pub fn add_draw_command(&mut self, cmd: DrawCommands) {
+        self.draw_commands.push(cmd);
+    }
+    pub fn clear_draw_commands(&mut self) {
+        self.draw_commands.clear();
     }
 }

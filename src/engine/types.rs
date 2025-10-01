@@ -48,12 +48,10 @@ pub type MessageQueue = VecDeque<Message>;
 
 #[derive(Debug, Clone)]
 pub enum Message {
-    // Scene-related
-    SpawnStaticModel { path: String },
-    StaticModelReady { id: u32 },
 
     //Renderer
-    
+    LoadStaticModel { path: String },
+    StaticModelReady { id: uuid::Uuid },
 
     // Logging/UI
     Log { level: log::Level, message: String },
